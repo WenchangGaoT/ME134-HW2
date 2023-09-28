@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <ESP32Servo.h>
 #include <Stepper.h>
+#include <math.h>
 
 // PINs
 
@@ -14,14 +15,14 @@ Stepper stepper2(STEPS, 1, 2, 3, 4);
 
 // Global variables
 
-float l1 = 0;
-float l2 = 0;
-float l3 = 0;
+double l1 = 1;
+double l2 = 1;
+double l3 = 1;
 
 class Coordinate {
 public:
-  float x, y, z;
-  Coordinate(float x, float y, float z) {
+  double x, y, z;
+  Coordinate(double x, double y, double z) {
     this->x = x;
     this->y = y;
     this->z = z;
@@ -30,8 +31,8 @@ public:
 
 class Angle {
 public: 
-  float theta1, theta2, theta3; 
-  Angle(float theta1, float theta2, float theta3) {
+  double theta1, theta2, theta3; 
+  Angle(double theta1, double theta2, double theta3) {
     this->theta1 = theta1;
     this->theta2 = theta2;
     this->theta3 = theta3;
@@ -45,9 +46,27 @@ Coordinate* w_trajectory;
 Coordinate* g_trajectory;
 
 
-void calculate_angles(Coordinate c, Angle* a) {
+void calculate_angles(Coordinate c, Angle* angle) {
   // Calculate the corresponding angles for the given coordinates.
   // The angles are directly set with the angle
+
+  double theta1 = atan(c.y/c.x);
+
+  double a = 0;
+  if(cos(theta1) <= 0.0001) a = c.y/sin(theta1) - l1;
+  else a = c.x/cos(theta1) - l1;
+
+  double theta2 = acos((a*a+c.z*c.z+l2*l2-l3*l3)/(2*l2));
+  if(c.z <= 0.0001) theta2 += 90; 
+  else theta2 += atan(a/c.z);
+
+  double theta3 = acos((a*a+c.z*c.z+l3*l3-l2*l2)/(2*l3)) - theta2;
+  if(a <= 0.0001) theta3 += 90;
+  else theta3 += atan(c.z/a); 
+
+  (*angle).theta1 = theta1;
+  (*angle).theta2 = theta2;
+  (*angle).theta3 = theta3;
 }
 
 void write_j() {
