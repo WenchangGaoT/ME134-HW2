@@ -64,7 +64,7 @@ void calculate_angles(Coordinate c, Angle* angle) {
   else theta2 += atan(a/c.z);
 
   double theta3 = 0;
-  if(temp <= 0.0001) theta3 = acos((l3*l3-l2*l2)/(2*l3));
+  if(temp <= 0.0001) theta3 = acos((l3*l3-l2*l2)/(2*l3)) - theta2;
   else theta3 = acos((a*a+c.z*c.z+l3*l3-l2*l2)/(2*l3)) - theta2;
   if(c.z <= 0.0001) theta3 += 90;
   else theta3 += atan(a/c.z); 
