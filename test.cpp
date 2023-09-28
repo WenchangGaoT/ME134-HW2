@@ -1,8 +1,10 @@
-#include <WiFi.h>
-#include <ESP32Servo.h>
-#include <Stepper.h>
+// #include <WiFi.h>
+// #include <ESP32Servo.h>
+// #include <Stepper.h>
 #include <math.h>
-#include <AccelStepper.h>
+#include <string>
+#include <iostream> 
+// #include <AccelStepper.h>
 
 /* GPIO */
 #define J1_DIR_PIN 2  // HIGH: CW; LOW: CCW
@@ -12,7 +14,9 @@
 #define J3_PWM_PIN 32
 
 // Global variables
-#define NEMA_STEP 200.0 // Nema 17HS4401 stepper motor spec.
+#define NEMA_STEP 200.0 // Nema 17HS4401 stepper motor spec. 
+
+using namespace std;
 
 double l1 = 20; // is this correct???
 double l2 = 150;
@@ -22,10 +26,10 @@ double l3 = 100;
 class Arm {
   public:
     Arm() {
-      AccelStepper J1(1, J1_STEP_PIN, J1_DIR_PIN);
-      AccelStepper J2(1, J2_STEP_PIN, J2_DIR_PIN);
-      Servo J3;
-      J3.attach(J3_PWM_PIN);
+    //   AccelStepper J1(1, J1_STEP_PIN, J1_DIR_PIN);
+    //   AccelStepper J2(1, J2_STEP_PIN, J2_DIR_PIN);
+    //   Servo J3;
+    //   J3.attach(J3_PWM_PIN);
 
       theta1 = 0;
       theta2 = 0;
@@ -43,6 +47,7 @@ class Arm {
       double a = 0;
       if(cos(theta1) <= 0.0001) a = y/sin(theta1) - l1;
       else a = x/cos(theta1) - l1;
+
       // Theta 2
       double temp = a*a + z*z;
       double alpha = atan(a/z);
@@ -66,6 +71,8 @@ class Arm {
       if(z <= 0.0001) theta3 += 90.0*(1000.0/57296.0);
       else theta3 += alpha;
       theta3 -= theta2;
+    //   theta3 += alpha;
+      // double theta3 = acos((z-l2*cos(theta2))/l3);
 
       // converting radians to degrees
       this->theta1 = theta1 * (57296.0/1000.0);
@@ -91,28 +98,26 @@ class Arm {
       J3.runToPosition();
       */
 
-      theta1_true = J1.currentPosition();
-      theta2_true = J2.currentPosition();
-      theta3_true = J3.read();
+    //   theta1_true = J1.currentPosition();
+    //   theta2_true = J2.currentPosition();
+    //   theta3_true = J3.read();
     }
 
     // testing function
     void print() {
-      Serial.println("ANGLES:");
-      Serial.println(String(theta1) + " " + String(theta2) + " " + String(theta3));
+        cout << "theta1: " << theta1 << " theta2: "<< theta2 << " theta3: " << theta3 << endl;
+      cout << "Coordinates: " << endl;
+      cout << x << " " << y << " " << z << endl;
 
-      Serial.println("COORDINATES:");
-      Serial.println(String(x) + " " + String(y) + " " + String(z));
-
-      //Serial.println("TRUE ANGLES:");
-      //Serial.println(String(theta1_true) + " " + String(theta2_true) + " " + String(theta3_true));
+      //printf("TRUE ANGLES:");
+      //printf(String(theta1_true) + " " + String(theta2_true) + " " + String(theta3_true));
     }
 
   private:
     /* Actuators */
-    AccelStepper J1;
-    AccelStepper J2;
-    Servo J3;
+    // AccelStepper J1;
+    // AccelStepper J2;
+    // Servo J3;
     
     /* Angles */
     float theta1;
@@ -133,18 +138,20 @@ class Arm {
 
 Arm wenchoi;
 
-void setup() {
-  Serial.begin(115200);
-}
 void loop() {
-  Serial.println("INITIAL: ");
-  delay(1000);
+  printf("INITIAL: ");
+//   delay(1000);
   wenchoi.print();
-  delay(1000);
+//   delay(1000);
   wenchoi.inverseKinematics(150, 100, 100);
-  delay(1000);
-  Serial.println("FINAL:");
+//   delay(1000);
+  printf("FINAL:");
   wenchoi.print();
-  delay(5000);
+//   delay(5000);
   while (true) {}
+}
+
+
+int main() {
+    loop();
 }
