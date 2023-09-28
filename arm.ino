@@ -56,13 +56,18 @@ void calculate_angles(Coordinate c, Angle* angle) {
   if(cos(theta1) <= 0.0001) a = c.y/sin(theta1) - l1;
   else a = c.x/cos(theta1) - l1;
 
-  double theta2 = acos((a*a+c.z*c.z+l2*l2-l3*l3)/(2*l2));
+  double theta2 = 0;
+  double temp = a*a + c.z*c.z;
+  if(temp <= 0.0001) theta2 = acos((l2*l2-l3*l3)/(2*l2));
+  else theta2 = acos((a*a+c.z*c.z+l2*l2-l3*l3)/(2*l2));
   if(c.z <= 0.0001) theta2 += 90; 
   else theta2 += atan(a/c.z);
 
-  double theta3 = acos((a*a+c.z*c.z+l3*l3-l2*l2)/(2*l3)) - theta2;
-  if(a <= 0.0001) theta3 += 90;
-  else theta3 += atan(c.z/a); 
+  double theta3 = 0;
+  if(temp <= 0.0001) theta3 = acos((l3*l3-l2*l2)/(2*l3));
+  else theta3 = acos((a*a+c.z*c.z+l3*l3-l2*l2)/(2*l3)) - theta2;
+  if(c.z <= 0.0001) theta3 += 90;
+  else theta3 += atan(a/c.z); 
 
   (*angle).theta1 = theta1;
   (*angle).theta2 = theta2;
