@@ -2,123 +2,139 @@
 #include <ESP32Servo.h>
 #include <Stepper.h>
 #include <math.h>
+#include <AccelStepper.h>
 
-// PINs
-
-#define STEPS 100
-
-// Motors
-Servo servo;
-Stepper stepper1(STEPS, 8, 9, 10, 11);
-Stepper stepper2(STEPS, 1, 2, 3, 4);
-
+/* GPIO */
+#define J1_DIR_PIN 2  // HIGH: CW; LOW: CCW
+#define J1_STEP_PIN 15
+#define J2_DIR_PIN 4
+#define J2_STEP_PIN 0
+#define J3_PWM_PIN 32
 
 // Global variables
+#define NEMA_STEP 200.0 // Nema 17HS4401 stepper motor spec.
 
-double l1 = 1;
-double l2 = 1;
-double l3 = 1;
+double l1 = 20; // is this correct???
+double l2 = 150;
+double l3 = 100;
 
-class Coordinate {
-public:
-  double x, y, z;
-  Coordinate(double x, double y, double z) {
-    this->x = x;
-    this->y = y;
-    this->z = z;
-  }
+// wrapper class
+class Arm {
+  public:
+    Arm() {
+      AccelStepper J1(1, J1_STEP_PIN, J1_DIR_PIN);
+      AccelStepper J2(1, J2_STEP_PIN, J2_DIR_PIN);
+      Servo J3;
+      J3.attach(J3_PWM_PIN);
+
+      theta1 = 0;
+      theta2 = 0;
+      theta3 = 0;
+    }
+
+    void write(float x, float y, float z) {
+      inverseKinematics(x, y, z);
+      writeAngles();
+    }
+
+    void inverseKinematics(float x, float y, float z) {
+      // Theta 1
+      theta1 = atan(y/x);
+      double a = 0;
+      if(cos(theta1) <= 0.0001) a = y/sin(theta1) - l1;
+      else a = x/cos(theta1) - l1;
+
+      // Theta 2
+      double temp = a*a + z*z;
+      if(temp <= 0.0001) theta2 = acos((l2*l2-l3*l3)/(2.0*l2));
+      else theta2 = acos((a*a+z*z+l2*l2-l3*l3)/(2.0*l2));
+      if(z <= 0.0001) theta2 += 90.0*(57296.0/1000.0); 
+      else theta2 += atan(a/z);
+
+      // Theta 3
+      if(temp <= 0.0001) theta3 = acos((l3*l3-l2*l2)/(2.0*l3)) - theta2;
+      else theta3 = acos((a*a+z*z+l3*l3-l2*l2)/(2.0*l3)) - theta2;
+      if(z <= 0.0001) theta3 += 90.0*(57296.0/1000.0);
+      else theta3 += atan(a/z);
+
+      // converting radians to degrees
+      this->theta1 = theta1 * (57296.0/1000.0);
+      this->theta2 = theta2 * (57296.0/1000.0);
+      this->theta3 = theta3 * (57296.0/1000.0);
+
+      // updating coordinates
+      this->x = x;
+      this->y = y;
+      this->z = z;
+    }
+
+    void writeAngles() {
+      int theta1_pos = int((theta1/360.0) * NEMA_STEP) + 1; // + 1 to account for float rounding truncation
+      int theta2_pos = int((theta2/360.0) * NEMA_STEP) + 1;
+      int theta3_pos = int(theta3) + 1;
+      /*
+      J1.moveTo(theta1_pos);
+      J2.moveTo(theta2_pos);
+      J3.write(theta3_pos);
+      J1.runToPosition();
+      J2.runToPosition();
+      J3.runToPosition();
+      */
+
+      theta1_true = J1.currentPosition();
+      theta2_true = J2.currentPosition();
+      theta3_true = J3.read();
+    }
+
+    // testing function
+    void print() {
+      Serial.println("ANGLES:");
+      Serial.println(String(theta1) + " " + String(theta2) + " " + String(theta3));
+
+      Serial.println("COORDINATES:");
+      Serial.println(String(x) + " " + String(y) + " " + String(z));
+
+      //Serial.println("TRUE ANGLES:");
+      //Serial.println(String(theta1_true) + " " + String(theta2_true) + " " + String(theta3_true));
+    }
+
+  private:
+    /* Actuators */
+    AccelStepper J1;
+    AccelStepper J2;
+    Servo J3;
+    
+    /* Angles */
+    float theta1;
+    float theta2;
+    float theta3;
+
+    float theta1_true;
+    float theta2_true;
+    float theta3_true;
+
+    /* XYZ Coordinates */
+    float x;
+    float y;
+    float z;
 };
 
-class Angle {
-public: 
-  double theta1, theta2, theta3; 
-  Angle(double theta1, double theta2, double theta3) {
-    this->theta1 = theta1;
-    this->theta2 = theta2;
-    this->theta3 = theta3;
-  }
-};
+/* */
 
-// Coordinate trajectory for the desired 4 letters
-Coordinate* j_trajectory;
-Coordinate* c_trajectory;
-Coordinate* w_trajectory;
-Coordinate* g_trajectory;
-
-
-void calculate_angles(Coordinate c, Angle* angle) {
-  // Calculate the corresponding angles for the given coordinates.
-  // The angles are directly set with the angle
-
-  double theta1 = atan(c.y/c.x);
-
-  double a = 0;
-  if(cos(theta1) <= 0.0001) a = c.y/sin(theta1) - l1;
-  else a = c.x/cos(theta1) - l1;
-
-  double theta2 = 0;
-  double temp = a*a + c.z*c.z;
-  if(temp <= 0.0001) theta2 = acos((l2*l2-l3*l3)/(2*l2));
-  else theta2 = acos((a*a+c.z*c.z+l2*l2-l3*l3)/(2*l2));
-  if(c.z <= 0.0001) theta2 += 90; 
-  else theta2 += atan(a/c.z);
-
-  double theta3 = 0;
-  if(temp <= 0.0001) theta3 = acos((l3*l3-l2*l2)/(2*l3)) - theta2;
-  else theta3 = acos((a*a+c.z*c.z+l3*l3-l2*l2)/(2*l3)) - theta2;
-  if(c.z <= 0.0001) theta3 += 90;
-  else theta3 += atan(a/c.z); 
-
-  (*angle).theta1 = theta1;
-  (*angle).theta2 = theta2;
-  (*angle).theta3 = theta3;
-}
-
-void write_j() {
-  // write the letter J using its trajectory 
-  Angle* a;
-  for(int i = 0; i < 50; i++) {
-    calculate_angles(j_trajectory[i], a);
-    // // TODO: move motors to a angles
-  }
-}
-
-void write_c() {
-  Angle* a;
-  for(int i = 0; i < 50; i++) {
-    calculate_angles(c_trajectory[i], a);
-    // // TODO: move motors to a angles
-  }
-}
-
-void write_w() {
-  Angle* a;
-  for(int i = 0; i < 50; i++) {
-    calculate_angles(w_trajectory[i], a);
-    // // TODO: move motors to a angles
-  }
-}
-
-void write_g() {
-  Angle* a;
-  for(int i = 0; i < 50; i++) {
-    calculate_angles(g_trajectory[i], a);
-    // // TODO: move motors to a angles
-  }
-}
+Arm wenchoi;
 
 void setup() {
-  Angle* a;
-  for(int i = 0; i < 50; i++) {
-    // calculate_angles(j_trajectory[i], a);
-    // // TODO: move motors to a angles
-  }
+  Serial.begin(115200);
 }
-
 void loop() {
-  Angle* a;
-  for(int i = 0; i < 50; i++) {
-    // calculate_angles(j_trajectory[i], a);
-    // // TODO: move motors to a angles
-  }
+  Serial.println("INITIAL: ");
+  delay(1000);
+  wenchoi.print();
+  delay(1000);
+  wenchoi.inverseKinematics(150, 100, 100);
+  delay(1000);
+  Serial.println("FINAL:");
+  wenchoi.print();
+  delay(5000);
+  while (true) {}
 }
