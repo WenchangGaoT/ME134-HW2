@@ -48,13 +48,13 @@ class Arm {
       double temp = a*a + z*z;
       if(temp <= 0.0001) theta2 = acos((l2*l2-l3*l3)/(2.0*l2));
       else theta2 = acos((a*a+z*z+l2*l2-l3*l3)/(2.0*l2));
-      if(z <= 0.0001) theta2 += 90.0*(57296.0/1000.0); 
+      if(z <= 0.0001) theta2 += 90.0*(1000.0/57296.0); 
       else theta2 += atan(a/z);
 
       // Theta 3
       if(temp <= 0.0001) theta3 = acos((l3*l3-l2*l2)/(2.0*l3)) - theta2;
       else theta3 = acos((a*a+z*z+l3*l3-l2*l2)/(2.0*l3)) - theta2;
-      if(z <= 0.0001) theta3 += 90.0*(57296.0/1000.0);
+      if(z <= 0.0001) theta3 += 90.0*(1000.0/57296.0);
       else theta3 += atan(a/z);
 
       // converting radians to degrees
