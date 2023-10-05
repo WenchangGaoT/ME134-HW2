@@ -7,74 +7,73 @@
 #include <AccelStepper.h>
 #include <ESP32Servo.h>
 #include <math.h>
+#include <WiFi.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
+#include "ESPAsyncWebServer.h"
+#include <string>
+
+// WiFi settings
+const char *server_id = "ESP";
+const char *server_pwd = "espespespesp";
+AsyncWebServer server(80);
 
 /* GPIO */
-#define J1_DIR_PIN 2  // HIGH: CW; LOW: CCW
+#define J1_DIR_PIN 2 // HIGH: CW; LOW: CCW
 #define J1_STEP_PIN 15
-#define J2_DIR_PIN 4
-#define J2_STEP_PIN 0
+#define J2_DIR_PIN 0
+#define J2_STEP_PIN 4
 #define J3_PWM_PIN 32
 
 /* Global variables */
 #define NEMA_STEP 200.0 // Nema 17HS4401 stepper motor spec.
-float l1 = 1;
-float l2 = 1;
-float l3 = 1;
+int idx = 0;
 
-// wrapper class
+// Wrapper class
 class Arm {
   public:
     Arm() {
       AccelStepper J1(1, J1_STEP_PIN, J1_DIR_PIN);
       AccelStepper J2(1, J2_STEP_PIN, J2_DIR_PIN);
+
+      J1.setMaxSpeed(1000);
+      J1.setAcceleration(30);
+      J2.setMaxSpeed(1000);
+      J2.setAcceleration(20);
+
       Servo J3;
       J3.attach(J3_PWM_PIN);
-    }
 
-    void write(int x, int y, int z) {
-      inverseKinematics(x, y, z);
-      writeAngles();
-      // call writeAngle() with results from above
-    }
-
-    void inverseKinematics(int x, int y, int z) {
-      theta1 = atan(y/x);
-      double a = 0;
-      if(cos(theta1) <= 0.0001) a = y/sin(theta1) - l1;
-      else a = x/cos(theta1) - l1;
-
+      theta1 = 0;
       theta2 = 0;
-      double temp = a*a + z*z;
-      if(temp <= 0.0001) theta2 = acos((l2*l2-l3*l3)/(2*l2));
-      else theta2 = acos((a*a+z*z+l2*l2-l3*l3)/(2*l2));
-      if(z <= 0.0001) theta2 += 90; 
-      else theta2 += atan(a/z);
-
       theta3 = 0;
-      if(temp <= 0.0001) theta3 = acos((l3*l3-l2*l2)/(2*l3)) - theta2;
-      else theta3 = acos((a*a+z*z+l3*l3-l2*l2)/(2*l3)) - theta2;
-      if(z <= 0.0001) theta3 += 90;
-      else theta3 += atan(a/z);
-
-      this->x = x;
-      this->y = y;
-      this->z = z;
     }
 
-    void writeAngles() {
+    void write() {
       int theta1_pos = int((theta1/360.0) * NEMA_STEP) + 1; // + 1 to account for float rounding truncation
       int theta2_pos = int((theta2/360.0) * NEMA_STEP) + 1;
       int theta3_pos = int(theta3) + 1;
-      /*
+      
+      // J1 actuation
       J1.moveTo(theta1_pos);
-      J2.moveTo(theta2_pos);
-      while (J1.distanceToGo > 0 && J2.distanceToGo > 0) {
+      Serial.println("THETA1 POS: " + String(theta1_pos));
+      while (J1.distanceToGo() != 0) {
+        if (J1.distanceToGo() == 0) { break; }
+        Serial.println("***************");
         J1.run();
+      }
+
+      // J2 actuation
+      J2.moveTo(theta2_pos);
+      while (J2.distanceToGo() != 0) {
+        if (J2.distanceToGo() == 0) { break; }
         J2.run();
       }
-      J3.write(theta3_pos);
-      */
 
+      // J3 actuation
+      J3.write(theta3_pos);
+
+      // Debugging purposes
       theta1_true = J1.currentPosition();
       theta2_true = J2.currentPosition();
       theta3_true = J3.read();
@@ -91,7 +90,7 @@ class Arm {
       Serial.println(String(theta1_true) + " " + String(theta2_true) + " " + String(theta3_true));
     }
 
-  private:
+  public:
     /* Actuators */
     AccelStepper J1;
     AccelStepper J2;
@@ -112,65 +111,40 @@ class Arm {
     float z;
 };
 
-/* */
-
-AccelStepper joint1(1, J1_STEP_PIN, J1_DIR_PIN);
-AccelStepper joint2(1, J2_STEP_PIN, J2_DIR_PIN);
-Servo joint3;
+Arm wenchoi;
 
 void setup() {
   Serial.begin(115200);
 
-  joint1.setMaxSpeed(1000);
-  joint1.setAcceleration(30);
-  joint2.setMaxSpeed(1000);
-  joint2.setAcceleration(20);
-  joint3.attach(J3_PWM_PIN);
+  WiFi.softAP(server_id, server_pwd);
+  Serial.print("\nSetting up server...");
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("\nSuccessfully set up server.\n");
+  Serial.println(IP);
+  server.on("/test",HTTP_POST,[](AsyncWebServerRequest * request){},
+    NULL,[](AsyncWebServerRequest * request, uint8_t *data_in, size_t len, size_t index, size_t total) {
+      String angs = String((char*) data_in, len);
+      //Serial.println("Received request!");
+      //Serial.println(angs);
+      request->send_P(200, "text/plain", String("received").c_str());
+      int cur_theta = angs.toInt(); 
+      //Serial.println(cur_theta);
+
+      // TODO: Update thetas according to idx
+      switch(idx) {
+      case 0: {wenchoi.theta1 = cur_theta; break;}
+      case 1: {wenchoi.theta2 = cur_theta; break;} 
+      case 2: {wenchoi.theta3 = cur_theta; break;} 
+      }
+      idx++;
+      if(idx == 3) {
+        Serial.println(wenchoi.theta1);
+        wenchoi.write();
+      }
+      idx %= 3;
+
+  });
+
+  server.begin();
 }
-void loop() {
-  joint1.moveTo(0);
-  joint2.moveTo(38);
-  joint1.runToPosition();
-  delay(100);
-  joint2.runToPosition();
-  delay(100);
-  joint3.write(70);
-  delay(500);
-
-  // J
-  joint3.write(100);
-  delay(1000);
-
-  joint1.moveTo(8);
-  joint1.runToPosition();
-  delay(1000);
-
-  //
-  joint3.write(-20);
-  delay(1000);
-  joint1.moveTo(-joint1.currentPosition());
-  joint1.runToPosition();
-  joint1.moveTo(40);
-  joint1.runToPosition();
-  delay(3000);
-
-  // C
-  joint3.write(20);
-  delay(1000);
-  joint1.moveTo(-joint1.currentPosition());
-  joint1.runToPosition();
-  joint1.moveTo(8);
-  joint1.runToPosition();
-  delay(1000);
-  joint3.write(70);
-  delay(1000);
-  joint1.moveTo(-joint1.currentPosition());
-  joint1.runToPosition();
-  joint1.moveTo(8);
-  joint1.runToPosition();
-  delay(1000);
-  joint1.moveTo(-joint1.currentPosition());
-  joint1.runToPosition();
-  while (true) {}
-
-}
+void loop() { }
