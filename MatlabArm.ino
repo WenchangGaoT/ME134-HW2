@@ -155,12 +155,19 @@ void setup() {
       Serial.println("Received request!");
       Serial.println(angs);
       request->send_P(200, "text/plain", String("received").c_str());
+      int cur_theta = angs.toInt(); 
+      Serial.println(cur_theta);
+
+      // TODO: Update thetas according to idx
       switch(idx) {
       case 0: {}
       case 1: {} 
       case 2: {} 
       }
       idx++;
+      if(idx == 3) {
+        // TODO: move motors
+      }
       idx %= 3;
 
   });
