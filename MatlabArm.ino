@@ -3,6 +3,15 @@
 #include <Stepper.h>
 #include <math.h>
 #include <AccelStepper.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
+#
+#include "ESPAsyncWebServer.h"
+#include <string>
+
+// WiFi settings
+const char *server_id = "ESP";
+const char *server_pwd = "espespespesp";
 
 /* GPIO */
 #define J1_DIR_PIN 2  // HIGH: CW; LOW: CCW
@@ -17,6 +26,10 @@
 double l1 = 20; // is this correct???
 double l2 = 150;
 double l3 = 100;
+
+int idx = 0;
+
+AsyncWebServer server(80);
 
 // wrapper class
 class Arm {
@@ -34,7 +47,7 @@ class Arm {
 
     void write(float x, float y, float z) {
       inverseKinematics(x, y, z);
-      writeAngles();
+      // writeAngles();
     }
 
     void inverseKinematics(float x, float y, float z) {
@@ -74,19 +87,18 @@ class Arm {
       this->z = z;
     }
 
-    void writeAngles() {
+    void writeAngles(int theta1, int theta2, int theta3) {
       int theta1_pos = int((theta1/360.0) * NEMA_STEP) + 1; // + 1 to account for float rounding truncation
       int theta2_pos = int((theta2/360.0) * NEMA_STEP) + 1;
       int theta3_pos = int(theta3) + 1;
-      /*
+    
       J1.moveTo(theta1_pos);
       J2.moveTo(theta2_pos);
-      J3.write(theta3_pos);
       J1.runToPosition();
       J2.runToPosition();
-      J3.runToPosition();
-      */
-
+      J3.write(theta3_pos);
+      delay(250);
+    
       theta1_true = J1.currentPosition();
       theta2_true = J2.currentPosition();
       theta3_true = J3.read();
@@ -104,7 +116,7 @@ class Arm {
       //Serial.println(String(theta1_true) + " " + String(theta2_true) + " " + String(theta3_true));
     }
 
-  private:
+  // private:
     /* Actuators */
     AccelStepper J1;
     AccelStepper J2;
@@ -131,16 +143,30 @@ Arm wenchoi;
 
 void setup() {
   Serial.begin(115200);
+  // Setting up server for other device to communicate using http proxy
+  WiFi.softAP(server_id, server_pwd);
+  Serial.print("\nSetting up server...");
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("\nSuccessfully set up server.\n");
+  Serial.println(IP);
+  server.on("/test",HTTP_POST,[](AsyncWebServerRequest * request){},
+    NULL,[](AsyncWebServerRequest * request, uint8_t *data_in, size_t len, size_t index, size_t total) {
+      String angs = String((char*) data_in, len);
+      Serial.println("Received request!");
+      Serial.println(angs);
+      request->send_P(200, "text/plain", String("received").c_str());
+      switch(idx) {
+      case 0: {}
+      case 1: {} 
+      case 2: {} 
+      }
+      idx++;
+      idx %= 3;
+
+  });
+
+  server.begin();
 }
 void loop() {
-  Serial.println("INITIAL: ");
-  delay(1000);
-  wenchoi.print();
-  delay(1000);
-  wenchoi.inverseKinematics(150, 100, 100);
-  delay(1000);
-  Serial.println("FINAL:");
-  wenchoi.print();
-  delay(5000);
-  while (true) {}
+
 }

@@ -50,26 +50,19 @@ class Arm {
 
       // Theta 2
       double temp = a*a + z*z;
-      double alpha = atan(a/z);
-      cout << "temp: " << temp << endl;
-      if(temp <= 0.0001) theta2 = acos((l2*l2-l3*l3)/(2.0*l2));
-      else theta2 = acos((temp+l2*l2-l3*l3)/(2.0*l2*sqrt(temp)));
+      double alpha = atan(z/a);
+    //   cout << "temp: " << temp << endl;
+      if(temp <= 0.0001) theta2 = asin((l2*l2-l3*l3)/(2.0*l2));
+      else theta2 = asin((temp+l2*l2-l3*l3)/(2.0*l2*sqrt(temp)));
       if(z <= 0.0001) theta2 += 90.0*(1000.0/57296.0); 
       else theta2 += alpha;
-      cout << "acos: " << (temp+l2*l2-l3*l3)/(2.0*l2*sqrt(temp)) << endl;
-      cout << "alpha: " << alpha << endl;
-      cout << "a: " << a << endl;
-      cout << "z: " << z << endl;
-      cout << "atan2(a,z): " << atan2(a, z) << endl;
-      cout << "atan(a/z): " << atan(a/z) << endl;
-
       // double theta2 = 2;
 
       // Theta 3
-      if(temp <= 0.0001) theta3 = -acos((l3*l3-l2*l2)/(2.0*l3)) ;
-      else theta3 = -acos((temp+l3*l3-l2*l2)/(2.0*l3*sqrt(temp))) ;
+      if(temp <= 0.0001) theta3 = sin((l3*l3-l2*l2)/(2.0*l3)) ;
+      else theta3 = sin((temp+l3*l3-l2*l2)/(2.0*l3*sqrt(temp))) ;
       if(z <= 0.0001) theta3 += 90.0*(1000.0/57296.0);
-      else theta3 += alpha;
+      else theta3 -= alpha;
       theta3 -= theta2;
     //   theta3 += alpha;
       // double theta3 = acos((z-l2*cos(theta2))/l3);
